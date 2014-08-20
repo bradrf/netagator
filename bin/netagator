@@ -1,0 +1,38 @@
+#!/usr/bin/env ruby
+
+require_relative '../lib/netagator'
+
+traceopts = Netagator::TcpTraceroute::DEFAULT_OPTIONS
+  .keys.map{|k| k.to_s << '<number>'}.join(' | ')
+
+if ARGV.size  < 2
+  $stderr.puts <<EOF
+
+usage: #{File.basename $0, '.rb'} { upload | download | both } <count_of_megabytes>
+       #{File.basename $0, '.rb'} trace <host> <port> [ #{traceopts} ]
+
+EOF
+  exit 1
+end
+
+cmd = ARGV.shift
+
+if cmd == 'trace'
+  options = ARGV.size > 2 ? eval("{#{ARGV[2..-1].join(',')}}") : nil
+  Netagator::TcpTraceroute.to(ARGV[0], ARGV[1].to_i, options) {|i| p i}
+  exit
+end
+
+count     = ARGV[1].to_i
+reporter  = Netagator::BandwidthReporter.new(3)
+testmynet = Netagator::TestMyNet.new(:west, reporter)
+
+if cmd == 'upload' || cmd == 'both'
+  testmynet.upload(count)
+end
+
+if cmd == 'download' || cmd == 'both'
+  testmynet.download(count)
+end
+
+reporter.kill

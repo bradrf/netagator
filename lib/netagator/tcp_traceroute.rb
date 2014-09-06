@@ -1,6 +1,8 @@
 require 'socket'
 require 'ostruct'
 
+# TODO: support IPv6
+
 module Netagator::TcpTraceroute
 
   # Default values for options.
@@ -70,7 +72,11 @@ module Netagator::TcpTraceroute
       @results = []
       @info_handler = block || Proc.new{|i| @results << i}
 
-      @dst_addr = Addrinfo.tcp(host, port)
+      @dst_addr, *alt_addrs = Addrinfo.getaddrinfo(host, port, :INET, :STREAM)
+      if alt_addrs.any?
+        Netagator.logger.warn "Alternate IP addresses found: " <<
+          alt_addrs.map{|a| a.ip_address}.join(', ')
+      end
 
       info = OpenStruct.new(ttl: 0, destination: @dst_addr)
 
@@ -143,12 +149,13 @@ module Netagator::TcpTraceroute
             @icmp_sock = nil
           else
             info.router = sender.ip_address
-            # skip 20 bytes of IP (assuming no options...)
-            if message = ICMP_TYPE[data.bytes[20]]
+            # skip past 20 bytes of IP (assuming no options...)
+            itype, iclass = data.byteslice(20,2).bytes.to_a
+            if message = ICMP_TYPE[itype]
               info.icmp_type  = message[:name]
-              info.icmp_class = message[:code][data.bytes[21]]
+              info.icmp_class = message[:code][iclass]
             else
-              info.icmp_data = data.bytes[21..-1]
+              info.icmp_data = data.byteslice(21..-1)
             end
           end
         rescue Timeout
@@ -164,10 +171,20 @@ module Netagator::TcpTraceroute
           send_sock.connect_nonblock(@dst_addr)
         rescue IO::WaitWritable, Errno::EALREADY
         end
-        (recv, send) = IO.select([@icmp_sock], [send_sock], nil, @opt.timeout)
+        (recv, send, err) = IO.select([@icmp_sock], [send_sock], nil, @opt.timeout)
         latency_ms = (Time.now - started_at) * 1000
         raise Timeout if recv.nil? && send.nil?
-        return [:connected, @dst_addr, latency_ms] if send && !send.empty?
+        if send && !send.empty?
+          success = [:connected, @dst_addr, latency_ms]
+          begin
+            send_sock.connect_nonblock(@dst_addr) # check connection failure
+            return success
+          rescue Errno::EISCONN
+            return success
+          rescue
+            # connection failure, fall thru...
+          end
+        end
         raise 'expected receive socket to be ready' if recv.nil? || recv.empty?
         return @icmp_sock.recvfrom(1024) << latency_ms
       end

@@ -34,7 +34,7 @@ module Netagator
         end
         location = nil
         Net::HTTP.start(uri.host, uri.port) do |http|
-          request = Net::HTTP::Post.new(uri)
+          request = Net::HTTP::Post.new(uri.request_uri)
           http.request(request) do |response|
             if response.kind_of?(Net::HTTPRedirection) && count < 3
               return post_to(response['location'], count+1)

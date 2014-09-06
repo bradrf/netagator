@@ -3,7 +3,7 @@
 require_relative '../lib/netagator'
 
 traceopts = Netagator::TcpTraceroute::DEFAULT_OPTIONS
-  .keys.map{|k| k.to_s << '<number>'}.join(' | ')
+  .keys.map{|k| k.to_s << ':<number>'}.join(' | ')
 
 if ARGV.size  < 2
   $stderr.puts <<EOF
@@ -23,7 +23,7 @@ if cmd == 'trace'
   exit
 end
 
-count     = ARGV[1].to_i
+count     = ARGV[0].to_i
 reporter  = Netagator::BandwidthReporter.new(3)
 testmynet = Netagator::TestMyNet.new(:west, reporter)
 

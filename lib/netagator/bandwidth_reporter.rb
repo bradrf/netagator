@@ -1,6 +1,8 @@
 module Netagator
   class BandwidthReporter
-    def initialize(time_between_reports=1, io=$stdout, priority=-10)
+    class InProgressError < StandardError; end
+
+    def initialize(time_between_reports=1, priority=-10, io=$stdout)
       @io = io
       @reporter = Thread.new do
         begin
@@ -9,7 +11,7 @@ module Netagator
             report("\r") if @reporting
           end
         rescue Exception => ex
-          p :bandwith_reporter, ex.message, ex.backtrace
+          Netagator.logger.error [:bandwith_reporter, ex.message, ex.backtrace].inspect
           raise
         end
       end
@@ -19,6 +21,7 @@ module Netagator
     attr_accessor :bytes
 
     def report_while(&block)
+      raise InProgressError if @reporting
       @min        = nil
       @max        = 0
       @bytes      = 0

@@ -2,13 +2,14 @@
 
 require_relative '../lib/netagator'
 
+regionopts = Netagator::TestMyNet::REGIONS.map{|r| r.to_s}.join(' | ')
 traceopts = Netagator::TcpTraceroute::DEFAULT_OPTIONS
   .keys.map{|k| k.to_s << ':<number>'}.join(' | ')
 
 if ARGV.size  < 2
   $stderr.puts <<EOF
 
-usage: #{File.basename $0, '.rb'} { upload | download | both } <count_of_megabytes>
+usage: #{File.basename $0, '.rb'} { upload | download | both } <count_of_megabytes> [ #{regionopts} ]
        #{File.basename $0, '.rb'} trace <host> <port> [ #{traceopts} ]
 
 EOF
@@ -24,8 +25,9 @@ if cmd == 'trace'
 end
 
 count     = ARGV[0].to_i
+region    = (ARGV[1] || :west).to_sym
 reporter  = Netagator::BandwidthReporter.new(3)
-testmynet = Netagator::TestMyNet.new(:west, reporter)
+testmynet = Netagator::TestMyNet.new(region, reporter)
 
 if cmd == 'upload' || cmd == 'both'
   testmynet.upload(count)
